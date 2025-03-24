@@ -1,0 +1,88 @@
+### This is the config file for the Snakefile_prepare_amplicons ###
+## You can edit it to change sample information and parameters as required ##
+
+min_length: 2400
+max_length: 3800
+
+## Primer information ##
+forward_primer: "ATCAACTTTCGATGGTAGGATAGA"
+reverse_primer: "AACACTCGCAYAYATGYTAGA"
+forward_primer_revcom: "TCTATCCTACCATCGAAAGTTGAT"
+reverse_primer_revcom: "TCTARCATRTRTGCGAGTGTT"
+
+### Sample information ###
+## Split each input filename into sample name plus suffix
+## NOTE - filenames must exactly match the sample name plus the suffix.
+## Put the list of sample names in a text file
+## one sample name per line and with the header 'Sample'
+
+sample_file: "sample_list.txt"
+
+## data for blastn
+sequence_gi: "sequence.gi"
+BLASTDB: "/path/to/core_nt"
+TAXONKIT_DB: "/path/to/core_nt"
+
+## Input file information ##
+input_data_directory: "fastq_files"
+input_file_suffix: ".fq.gz"
+
+
+## Processing amplicons using cutadapt and vsearch ##
+## Should not need to edit parameters below
+processed_data_directory: "amplicons_processed"
+processed_file_suffix: ".trimmed.combined.fasta" 
+
+dereplicated_data_directory: "amplicons_dereplicated"
+dereplicated_file_suffix: ".vsearch_dereplicated.fasta"
+
+chimeras_removed_directory: "amplicons_chimeras_removed"
+nonchimeras_file_suffix: ".nonchimeras.fasta"
+
+## Clustering processed amplicons using swarm ##
+swarm_clusters_directory: "clusters_swarm"
+swarm_input_directory: "amplicons_chimeras_removed"
+swarm_input_file_suffix: ".nonchimeras.fasta"
+
+## TOP20
+top20_clusters_directory: "clusters_top20"
+top20_file_suffix: ".top20.swarm.seeds.fasta"
+
+## Blast
+blast_directory: "clusters_top20/clusters_blasted"
+blast_file_suffix: ".taxonomy.tsv"
+
+## Taxonomy results
+taxonomy_directory: "clusters_top20/clusters_taxonomy"
+
+## Filter taxonomy swarm clusters
+tax_filtered_directory: "clusters_tax_filtered"
+tax_filter_suffix: ".tax_filtered.swarm.seeds.fasta"
+
+## Removing small clusters (singletons and Median Absolute Deviation (MAD) based)
+filtclusters_directory: "clusters_abd_filtered"
+filtclusters_file_suffix: ".abd_filtered.swarm.seeds.fasta"
+kmeans_file_suffix: ".swarm.kmeans.tsv"
+
+## Mafft alignment
+aligned_directory: "clusters_aligned"
+aligned_file_suffix: ".abd_filtered.swarm.seeds.txt"
+
+
+
+### Software parameters ###
+
+threads: 4
+
+## Use these parameters
+## Cutadapt for trimming, sorting and filtering amplicons 
+## vsearch for dereplicating amplicons and removing chimeras
+## Swarm for clustering: -d is resolution; -z is for vsearch format IDs;
+## -f flag is for fastidious to combine small clusters with larger ones
+
+cutadapt_parameters: "--no-indels --discard-untrimmed --quality-cutoff 50"
+
+vsearch_dereplicate_parameters: "--derep_fulllength"
+vsearch_remove_chimeras_parameters: "--abskew 7.0"
+
+swarm_parameters: "-zf -d 1 -t 10"

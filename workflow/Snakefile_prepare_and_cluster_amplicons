@@ -1,0 +1,357 @@
+### Snakefile to prepare and cluster amplicon sequences ###
+## Edit this file only if you are changing the programs in the pipeline ##
+## Edit the config.yaml file to change information and parameters as required ##
+
+from pandas import read_csv
+
+configfile: "../config/config_prepare_and_cluster_amplicons.yaml"
+sample_file = config["sample_file"]
+SAMPLES = read_csv(sample_file)['Sample']
+sequence_gi = config['sequence_gi']
+BLASTDB = config['BLASTDB']
+TAXONKIT_DB = config['TAXONKIT_DB']
+
+input_data_directory = config['input_data_directory']
+input_file_suffix = config['input_file_suffix']
+
+processed_data_directory = config['processed_data_directory']
+processed_file_suffix = config['processed_file_suffix']
+
+dereplicated_data_directory = config['dereplicated_data_directory']
+dereplicated_file_suffix = config['dereplicated_file_suffix']
+
+chimeras_removed_directory = config['chimeras_removed_directory']
+nonchimeras_file_suffix = config['nonchimeras_file_suffix']
+
+swarm_input_directory = config['swarm_input_directory']
+swarm_input_file_suffix = config['swarm_input_file_suffix']
+swarm_clusters_directory = config['swarm_clusters_directory']
+
+top20_clusters_directory = config['top20_clusters_directory']
+top20_file_suffix = config['top20_file_suffix']
+
+blast_file_suffix = config['blast_file_suffix']
+blast_directory = config['blast_directory']
+
+taxonomy_directory = config['taxonomy_directory']
+
+tax_filtered_directory = config['tax_filtered_directory']
+tax_filter_suffix = config['tax_filter_suffix']
+
+filtclusters_file_suffix = config['filtclusters_file_suffix']
+filtclusters_directory = config['filtclusters_directory']
+kmeans_file_suffix = config['kmeans_file_suffix']
+
+aligned_directory = ['aligned_directory']
+aligned_file_suffix = ['aligned_file_suffix']
+
+min_length = config['min_length']
+max_length = config['max_length']
+primerF = config['forward_primer']
+primerR = config['reverse_primer']
+primerF_revcom = config['forward_primer_revcom']
+primerR_revcom = config['reverse_primer_revcom']
+
+rule all:
+    input:
+        expand(processed_data_directory +"/{sample}" + processed_file_suffix +".gz", sample=SAMPLES),
+        expand(dereplicated_data_directory +"/{sample}" + dereplicated_file_suffix +".gz", sample=SAMPLES),
+        expand(chimeras_removed_directory +"/{sample}" + nonchimeras_file_suffix, sample=SAMPLES),
+        expand(swarm_clusters_directory +"/{sample}.swarm.seeds.fasta", sample=SAMPLES),
+        expand(top20_clusters_directory +"/{sample}" + top20_file_suffix, sample=SAMPLES),
+        expand(blast_directory +"/{sample}.pSSU_ITS_pLSU" + blast_file_suffix, sample=SAMPLES),
+        expand(taxonomy_directory + "/pSSU_ITS_pLSU_taxonomy.tsv"),
+        expand(tax_filtered_directory +"/{sample}" + tax_filter_suffix, sample=SAMPLES),
+        expand(filtclusters_directory +"/{sample}" + kmeans_file_suffix, sample=SAMPLES),
+        expand("clusters_aligned/{sample}.abd_filtered.swarm.seeds.aln", sample=SAMPLES)
+        
+## Individual rules ##
+
+rule trim_sort_and_filter_sequences:
+    input:
+        input_data_directory + "/{sample}" + input_file_suffix
+    output:
+        seqs_forward=temp("{processed_data_directory}/{sample}.trimmed-forward.fasta"),
+        seqs_reverse=temp("{processed_data_directory}/{sample}.trimmed-reverse.fasta"),
+        stats="{processed_data_directory}/{sample}.trimmed.stats.txt"
+    threads: config['threads']
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml"
+    params:
+        run_params = config['cutadapt_parameters'],
+        linked_sequences_F = primerF +";min_overlap=7..."+ primerR_revcom +";min_overlap=7",
+        linked_sequences_R = primerR +";min_overlap=7..."+ primerF_revcom +";min_overlap=7",
+    shell:
+        "cutadapt {params.run_params}"
+        " -g forward=\"{params.linked_sequences_F}\" -g reverse=\"{params.linked_sequences_R}\""
+        " --minimum-length {min_length} --maximum-length {max_length}"
+        " -o {processed_data_directory}/{wildcards.sample}.trimmed-{{name}}.fasta {input} > {output.stats}"
+
+rule reverse_complement_fasta_file:
+    input:
+        "{processed_data_directory}/{sample}.trimmed-reverse.fasta"
+    output:
+        temp("{processed_data_directory}/{sample}.trimmed-reverse.revcom.fasta")
+    threads: config['threads']
+    conda: "envs/snakemake_amplicon_clustering_v2.yml"
+    shell:
+        "python scripts/reverse_complement_fasta_file.py {input} {output}"
+
+rule combine_fasta_files:
+    input:
+        seqfile1 = "{processed_data_directory}/{sample}.trimmed-forward.fasta",
+        seqfile2 = "{processed_data_directory}/{sample}.trimmed-reverse.revcom.fasta"
+    output:
+        "{processed_data_directory}/{sample}" + processed_file_suffix
+    threads: config['threads']
+    shell:
+        "cat {input.seqfile1} {input.seqfile2} > {output}"
+
+rule gzip_fasta_file:
+    input:
+        "{processed_data_directory}/{sample}" + processed_file_suffix
+    output:
+        "{processed_data_directory}/{sample}" + processed_file_suffix +".gz"
+    threads: config['threads']
+    shell:
+        "gzip {input}"
+
+rule dereplicate_sequences:
+    input:
+        processed_data_directory + "/{sample}" + processed_file_suffix +".gz"
+    output:
+        dereplicated_data_directory + "/{sample}" + dereplicated_file_suffix
+    threads: config['threads']
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml"
+    params:
+        run_params=config['vsearch_dereplicate_parameters']    
+    shell:
+        "vsearch {params.run_params} {input} --output {output} --sizeout"
+
+rule gzip_dereplicated_sequences:
+    input:
+        dereplicated_data_directory +"/{sample}" + dereplicated_file_suffix
+    output:
+         dereplicated_data_directory +"/{sample}" + dereplicated_file_suffix +".gz"
+    threads: config['threads']
+    shell:
+        "gzip {input}"
+
+rule remove_chimeras:
+    input:
+        dereplicated_data_directory +"/{sample}"+ dereplicated_file_suffix +".gz"
+    output:
+        chimeras="{chimeras_removed_directory}/{sample}.chimeras.fasta",
+        nonchimeras="{chimeras_removed_directory}/{sample}" + nonchimeras_file_suffix,
+        stats="{chimeras_removed_directory}/{sample}.chimeras.stats.txt"
+    threads: config['threads']
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml"
+    params:
+        run_params=config['vsearch_remove_chimeras_parameters']
+    shell:
+        "vsearch --uchime2_denovo {input} {params.run_params} " 
+        "--chimeras {output.chimeras} --nonchimeras {output.nonchimeras} &> {output.stats}"
+
+rule cluster_sequences_with_swarm:
+    input:
+        swarm_input_directory +"/{sample}"+ swarm_input_file_suffix
+    output:
+        seeds=swarm_clusters_directory +"/{sample}.swarm.seeds.fasta",
+        stats=swarm_clusters_directory +"/{sample}.swarm.stats.txt",
+        networks=swarm_clusters_directory +"/{sample}.networks.txt",
+        structures=swarm_clusters_directory +"/{sample}.struct.txt"
+
+    threads: config['threads']
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml"
+    params:
+        run_params = config['swarm_parameters']
+    shell:
+        "swarm {params.run_params} {input} -w {output.seeds} -s {output.stats} -i {output.structures} -j {output.networks}"
+        
+rule top20_clusters:
+    input:
+        swarm_clusters_directory +"/{sample}.swarm.seeds.fasta"
+    output:
+        top20=top20_clusters_directory +"/{sample}" + top20_file_suffix
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml" 
+    shell:
+        "Rscript scripts/top20_swarm_clusters.R {input} {top20_clusters_directory}"
+      
+rule blast_clusters:       
+    input:
+      top20_clusters_directory +"/{sample}.top20.swarm.seeds.fasta"
+    output:
+    	trunc=blast_directory +"/{sample}.trunc.fasta",
+    	blast_ssu=blast_directory +"/{sample}.SSU.blasted.txt",
+    	taxa_ssu=blast_directory +"/{sample}.SSU" + blast_file_suffix,
+    	blast_lsu=blast_directory +"/{sample}.pSSU_ITS_pLSU.blasted.txt",
+    	taxa_lsu=blast_directory +"/{sample}.pSSU_ITS_pLSU" + blast_file_suffix
+    
+    threads: config['threads']    
+    conda:
+        "envs/blast.yml"        
+    shell:
+    	"""
+    	export BLASTDB={BLASTDB}
+    	export TAXONKIT_DB={TAXONKIT_DB}
+    	IFS=';'
+    	
+    	seq_name=""
+    	seq=""
+    	
+    	if [ -s {input} ]; then
+    		# Process the input FASTA to create a fasta with the second part of cluster
+			while read -r line; do
+				if [[ $line == ">"* ]]; then
+				# If it's a sequence header, print the previous sequence (trimmed) if it's not empty
+				if [ -n "$seq_name" ]; then
+					# Print the header
+					echo "$seq_name" >> {output.trunc}
+					# Trim the first 1200 nucleotides and print the sequence
+					echo "${{seq:1200}}" >> {output.trunc}
+				fi
+				# Start a new sequence
+				seq_name="$line"
+				seq=""
+				else
+				# Append the line to the sequence
+				seq+="$line"
+				fi
+			done < {input}
+
+			# Print the last sequence (if any)
+			if [ -n "$seq_name" ]; then
+				echo "$seq_name" >> {output.trunc}
+				echo "${{seq:1200}}" >> {output.trunc}
+			fi
+	fi
+		
+	if [ ! -s {input} ]; then
+			touch {output.trunc}
+   	fi
+   	
+    	# Blast the first 1200 nucleotides of cluster
+    	blastn \
+    	    -db {BLASTDB}/core_nt \
+    	    -task megablast \
+    	    -query {input} \
+    	    -dust no \
+    	    -evalue 1e-20 \
+    	    -max_target_seqs 1 \
+    	    -max_hsps 1 \
+    	    -negative_gilist {sequence_gi} \
+    	    -query_loc 1-1200 \
+    	    -outfmt "6 qseqid sseqid evalue qcovs qlen slen length pident staxids sscinames sskingdoms" \
+    	    -num_threads {threads} \
+    	    -out {output.blast_ssu}
+    	
+    	awk -v FS="\\t" 'BEGIN {{ OFS = "\\n" }} {{ print $9 }}' {output.blast_ssu} | \
+    	    cut -d ";" -f 1 | \
+          taxonkit reformat -I 1 -f "{{k}}\\t{{p}}\\t{{c}}\\t{{o}}\\t{{f}}\\t{{g}}\\t{{s}}" > {output.blast_ssu}.tmp
+            
+        paste {output.blast_ssu} {output.blast_ssu}.tmp | \
+            awk -v FS="\\t" -v OFS="\\t" -v var={input} '{{print var,$1,$2,$3,$4,$5,$6,$7,$8,$9,$13,$14,$15,$16,$17,$18,$19}}' > {output.taxa_ssu}
+ 
+        rm {output.blast_ssu}.tmp
+    	
+    	# Blast remaining cluster
+        blastn \
+    	    -db {BLASTDB}/core_nt \
+    	    -task megablast \
+    	    -query {output.trunc} \
+    	    -dust no \
+    	    -evalue 1e-20 \
+    	    -max_target_seqs 1 \
+    	    -max_hsps 1 \
+    	    -negative_gilist {sequence_gi} \
+    	    -outfmt "6 qseqid sseqid evalue qcovs qlen slen length pident staxids sscinames sskingdoms" \
+    	    -num_threads {threads} \
+    	    -out {output.blast_lsu}
+    	
+    	awk -v FS="\\t" 'BEGIN {{ OFS = "\\n" }} {{ print $9 }}' {output.blast_lsu} | \
+    	    cut -d ";" -f 1 | \
+            taxonkit reformat -I 1 -f "{{k}}\\t{{p}}\\t{{c}}\\t{{o}}\\t{{f}}\\t{{g}}\\t{{s}}" > {output.blast_lsu}.tmp
+            
+        paste {output.blast_lsu} {output.blast_lsu}.tmp | \
+            awk -v FS="\\t" -v OFS="\\t" -v var={output.trunc} '{{print var,$1,$2,$3,$4,$5,$6,$7,$8,$9,$13,$14,$15,$16,$17,$18,$19}}' > {output.taxa_lsu}
+ 
+        rm {output.blast_lsu}.tmp
+	
+    	"""
+
+rule merge_results:
+    input:
+        ssu=expand(blast_directory +"/{sample}.SSU" + blast_file_suffix, sample=SAMPLES),
+        lsu=expand(blast_directory +"/{sample}.pSSU_ITS_pLSU" + blast_file_suffix, sample=SAMPLES)
+    output:
+        blast_ssu=taxonomy_directory + "/SSU_taxonomy.tsv",
+        blast_lsu=taxonomy_directory + "/pSSU_ITS_pLSU_taxonomy.tsv"
+
+    threads: config['threads']    
+        
+    shell:
+        """
+        cat {input.ssu} > {output.blast_ssu}.tmp
+   
+        echo -e "sample_file\\tquery\\taccession\\tevalue\\tquery_cover\\tquery_len\\tsubject_len\\talign_len\\tpcrt_id\\ttaxid\\tkingdom\\tphylum\\tclass\\torder\\tfamily\\tgenus\\tspecies" | \
+          cat - {output.blast_ssu}.tmp > {output.blast_ssu}.tmp.tmp && mv {output.blast_ssu}.tmp.tmp {output.blast_ssu}
+        
+        rm {output.blast_ssu}.tmp
+        
+        cat {input.lsu} > {output.blast_lsu}.tmp
+        
+        echo -e "sample_file\\tquery\\taccession\\tevalue\\tquery_cover\\tquery_len\\tsubject_len\\talign_len\\tpcrt_id\\ttaxid\\tkingdom\\tphylum\\tclass\\torder\\tfamily\\tgenus\\tspecies" | \
+          cat - {output.blast_lsu}.tmp > {output.blast_lsu}.tmp.tmp && mv {output.blast_lsu}.tmp.tmp {output.blast_lsu}
+        
+        rm {output.blast_lsu}.tmp
+
+        """
+
+rule filter_tax:
+    input:
+        tax=taxonomy_directory + "/pSSU_ITS_pLSU_taxonomy.tsv",
+        seeds=swarm_clusters_directory +"/{sample}.swarm.seeds.fasta"
+    output:
+        filtered=tax_filtered_directory +"/{sample}" + tax_filter_suffix
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml"
+    shell:
+        "Rscript scripts/filter_taxonomy_swarm_clusters.R {input.seeds} {input.tax} {tax_filtered_directory}"
+
+
+rule filter_clusters:
+    input:
+        tax_filtered_directory +"/{sample}" + tax_filter_suffix
+    output:
+        filtclusters_directory +"/{sample}" + filtclusters_file_suffix,
+        filtclusters_directory +"/{sample}" + kmeans_file_suffix
+    threads: config['threads']
+    conda:
+        "envs/snakemake_amplicon_clustering_v2.yml"    
+    shell:
+         "Rscript scripts/filter_and_rename_swarm_clusters.R {input} {filtclusters_directory}"
+
+
+rule mafft_alignment:
+    input:
+        filtclusters_directory +"/{sample}" + filtclusters_file_suffix
+    output:
+        "clusters_aligned/{sample}.abd_filtered.swarm.seeds.aln"
+    threads: config['threads']
+    conda:
+        "envs/mafft.yml"    
+    shell:
+        """
+        if [ -s {input} ]
+        then
+          mafft --thread {threads} {input} > {output}
+        else
+          touch {output}    
+        fi
+
+        """
+
