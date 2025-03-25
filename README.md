@@ -5,11 +5,11 @@ This pipeline analyses PacBio AMF amplicon sequences using a workflow management
 ## SUMMARY
 The workflow has five main steps: <br>
 1) Primer removal and quality filtering: the pipeline starts with [Cutadapt](https://github.com/marcelm/cutadapt) (v4.5), which remove primers from PacBio sequences, followed by quality and size filtering.
-2) Dereplication and chimera removal: in this  step, [VSEARCH](https://github.com/torognes/vsearch) (v2.24) is used to dereplicate the sequences and remove chimeras.
+2) Dereplication and chimera removal: in this step, [VSEARCH](https://github.com/torognes/vsearch) (v2.24) is used to dereplicate the sequences and remove chimeras.
 3) Clustering: the dereplicated sequences are clustered using [Swarm](https://github.com/torognes/swarm) (v3.1.4).
-4) Cluster filtering: clusters are filtered using a two-part process:
-- First, the 20 first most abundant clustered sequences are locally aligned using [BLAST](https://blast.ncbi.nlm.nih.gov/doc/blast-help/downloadblastdata.html) (v2.16.0) against the core_nt database, and their taxonomy is determined with [TaxonKit](https://bioinf.shenwei.me/taxonkit/) (v0.17.0). The BLAST process is carried out in two distinct phases: initially, the first 1200 nucleotides of each cluster—corresponding to the SSU region—are aligned. Then, the remaining nucleotides, covering the end of SSU, ITS, and LSU regions, are aligned separately. Since the taxonomic assignment of this latter region is more reliable, it is used to filter out sequences from the 20 larger clusters that belong to a phylum other than Mucoromycota. 
-- Then, clusters are filtered based on their size to reduce the likelihood of SNPs arising from technical artifacts rather than true biological variation. The filtering process follows these rules:
+4) Cluster filtering: clusters are filtered first by their taxonomy and then by their abundance:
+- Taxonomic filtering: the 20 most abundant clustered sequences are locally aligned using BLAST (v2.16.0) against the core_nt database, and their taxonomy is determined using TaxonKit (v0.17.0). The SSU (~1.2 Kb) and Krüger fragment (end of SSU-ITS-partial LSU, ~1.5 Kb) are queried separately against the core_nt database due to the limited number of 2.7 kb AMF sequences in NCBI. BLAST results based on the Krüger fragments are used to filter out clusters that do not belong to the phylum Mucoromycota.
+- Size filtering: taxonomically filtered Swarm clusters are filtered based on their size to reduce the likelihood that SNPs are due to technical artifacts rather than true biological variation. The filtering process has the following conditions:
   *  If there are fewer than 7 unique abundance values and all abundances are 1, all sequences are removed.
   *  If there are fewer than 7 unique abundance values but not all abundances are 1, only the sequence with the highest abundance is retained.
   *   If there are more than 7 unique abundance values, a 7-cluster K-means algorithm is applied:
@@ -18,6 +18,14 @@ The workflow has five main steps: <br>
 
 5) Alignment: the filtered clusters are aligned with [MAFFT](https://mafft.cbrc.jp/alignment/server/index.html) (v7.525)
 
+#### Rationale for filtering conditions:
+As both the number of Swarm clusters and their associated abundance values can vary considerably between samples, adaptive thresholding based on k-means clustering was used to identify significantly abundant Swarm clusters. The k-means clustering grouped the abundance values into statistical clusters based on their distribution.
+
+The number of k-means clusters was set at seven based on the analysis of 11 PacBio datasets representing six Rhizophagus irregularis strains. For k=7, no more than 11 Swarm clusters per sample were recovered, which is consistent with the known number of 45S rDNA copies in R. irregularis genomes.
+
+For samples with Swarm cluster abundance ≤ 150, the distribution tends to be narrow with low abundance (i.e. noise) Swarm clusters. In this case, only the top 2 k-means clusters are retained to ensure a stricter, more conservative selection of high-confidence Swarm clusters.
+
+For samples with Swarm cluster abundance > 150, the distribution tends to be wider with more high abundance Swarm clusters. In this case, the top 3 k-means clusters are selected to provide a more inclusive but still focused retention of likely biologically significant Swarm clusters.
 
 ## REQUIREMENTS
 
@@ -86,7 +94,7 @@ blastn \
     -out {output.blast_ssu}
 ```
 
-5) The swarm clusters are blasted locally against core_nt. Instructions for obtaining the DB can be found at [NCBI](https://www.ncbi.nlm.nih.gov/books/NBK569850/). In addition, [TaxonKit](https://bioinf.shenwei.me/taxonkit/download/) is used to translate taxIDs from the blast results into full taxonomy ranks. TaxonKit requires a database, which can be installed using [these instructions](https://bioinf.shenwei.me/taxonkit/usage/).
+5) The swarm clusters are searched against core_nt database using local BLAST. Instructions for obtaining the DB can be found at [NCBI](https://www.ncbi.nlm.nih.gov/books/NBK569850/). In addition, [TaxonKit](https://bioinf.shenwei.me/taxonkit/download/) is used to translate taxIDs from the blast results into full taxonomy ranks. TaxonKit requires a database, which can be installed using [these instructions](https://bioinf.shenwei.me/taxonkit/usage/).
 
 
 ## PARAMETERS
