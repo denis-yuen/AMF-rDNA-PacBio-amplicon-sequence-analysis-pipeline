@@ -6,6 +6,7 @@ channels:
   - defaults
   - r
 dependencies:
+  - r-base=4.4.3
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
   - arpack=3.8.0
