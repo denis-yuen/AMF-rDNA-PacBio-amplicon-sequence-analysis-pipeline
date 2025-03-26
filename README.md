@@ -9,7 +9,7 @@ The workflow has five main steps: <br>
 3) Clustering of dereplicated sequences using [Swarm](https://github.com/torognes/swarm) (v3.1.4).
 4) Filter Swarm clusters based on taxonomy and abundance:
 - Taxonomic filtering: the 20 most abundant Swarm clusters are locally aligned using BLAST (v2.16.0) against the core_nt database, and their taxonomy is determined using TaxonKit (v0.17.0). The SSU (~1.2 Kb) and Krüger fragment (end of SSU-ITS-partial LSU, ~1.5 Kb) are queried separately against the core_nt database due to the limited number of 2.7 kb AMF sequences in NCBI. BLAST results based on the Krüger fragments are used to filter out clusters that do not belong to the phylum Mucoromycota.
-- Size filtering: taxonomically filtered Swarm clusters are filtered based on their size to reduce the likelihood that SNPs are due to technical artifacts rather than true biological variation. The filtering process has the following conditions:
+- Abundance filtering: taxonomically filtered Swarm clusters are filtered based on their abundance to reduce the likelihood that SNPs are due to technical artifacts rather than true biological variation. The filtering process has the following conditions:
   *  If there are fewer than 7 unique abundance values and all abundances are 1, all sequences are removed.
   *  If there are fewer than 7 unique abundance values but not all abundances are 1, only the sequence with the highest abundance is retained.
   *   If there are more than 7 unique abundance values, a 7-cluster K-means algorithm is applied:
@@ -203,7 +203,7 @@ Run the pipeline on a Linux workstation using [```run_prepare_and_cluster_amplic
  - *clusters_top20* & *clusters_tax_filtered* are the output of the first phase where:
    +  *pSSU_ITS_pLSU_taxonomy.tsv* and *SSU_taxonomy.tsv* are taxonomy assignments of all samples
    +  *<sample_name>.top20.swarm.seeds.fasta* are the 20 most abundant clusters
- - *clusters_abd_filtered* is the output after the filtration based on the cluster sizes including:
+ - *clusters_abd_filtered* is the output after the filtration based on the cluster abundances including:
    +  *<sample_name>.abd_filtered.swarm.seeds.fasta*, the clusters remaining after filtration
    +  *<sample_name>.swarm.kmeans.fasta*, the KMeans cutoff used as threshold
 
