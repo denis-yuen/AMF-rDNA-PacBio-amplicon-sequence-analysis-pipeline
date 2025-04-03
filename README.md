@@ -1,5 +1,5 @@
 ## ABOUT
-This pipeline analyses PacBio AMF amplicon sequences using a workflow management system.  It has been designed to run with [Snakemake](https://snakemake.readthedocs.io/en/stable/) (v7.32.4) with [Conda](https://docs.conda.io/projects/conda/en/latest/index.html) environments.
+This pipeline analyses PacBio AMF amplicon sequences using a workflow management system.  It has been designed to run with [Snakemake](https://snakemake.readthedocs.io/en/stable/) with [Conda](https://docs.conda.io/projects/conda/en/latest/index.html) environments.
 
 
 ## SUMMARY
