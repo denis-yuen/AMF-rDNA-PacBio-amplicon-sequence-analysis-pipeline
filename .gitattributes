@@ -1,0 +1,2 @@
+# Handle .gi file(s) as “vendored” so Linguist skips them
+*.gi linguist-vendored
