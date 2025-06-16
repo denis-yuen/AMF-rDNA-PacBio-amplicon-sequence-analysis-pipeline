@@ -22,7 +22,7 @@ The workflow has five main steps: <br>
 
 As both the number of Swarm clusters and their associated abundance values can vary considerably between samples, adaptive thresholding based on k-means clustering was used to identify significantly abundant Swarm clusters. The k-means clustering grouped the abundance values into statistical clusters based on their distribution.
 
-The number of k-means clusters was set to seven based on the analysis of 11 PacBio datasets representing six Rhizophagus irregularis strains. For k=7, no more than 11 Swarm clusters per sample were recovered, which is consistent with the known number of 45S rDNA copies in R. irregularis genomes.
+The number of k-means clusters was set to seven based on the analysis of 11 PacBio datasets representing six Rhizophagus irregularis strains. For k=7, no more than 11 Swarm clusters per sample were recovered, which is consistent with the known number of rDNA copies in R. irregularis genomes.
 
 For samples with Swarm cluster abundance ≤ 150, the distribution tends to be narrow with low abundance (i.e. noise) Swarm clusters. In this case, only the top 2 k-means clusters are retained to ensure a stricter, more conservative selection of high-confidence Swarm clusters.
 
