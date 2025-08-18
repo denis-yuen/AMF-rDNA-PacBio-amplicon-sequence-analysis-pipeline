@@ -6,6 +6,7 @@ workflows:
   - subclass: snakemake
     descriptorType: SNAKEMAKE
     primaryDescriptorPath: /workflow/Snakefile_prepare_and_cluster_amplicons
+    publish: True
     name: AMF-rDNA-PacBio-amplicon-sequence-analysis-pipeline
     testParameterFiles:
       - /config/config_prepare_and_cluster_amplicons.yaml
