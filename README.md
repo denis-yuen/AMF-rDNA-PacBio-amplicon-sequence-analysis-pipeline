@@ -1,5 +1,5 @@
 ## ABOUT
-This pipeline analyses PacBio AMF amplicon sequences using a workflow management system.  It has been designed to run with [Snakemake](https://snakemake.readthedocs.io/en/stable/) with [Conda](https://docs.conda.io/projects/conda/en/latest/index.html) environments.
+This pipeline analyses rDNA amplicon sequences from single or multiple spores of arbuscular mycorrhizal fungi (AMF) generated using PacBio sequencing. Built using the [Snakemake](https://snakemake.readthedocs.io/en/stable/) workflow management system, it leverages [Conda](https://docs.conda.io/projects/conda/en/latest/index.html) environments for reproducibility and ease of deployment.
 
 
 ## SUMMARY
