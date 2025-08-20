@@ -1,7 +1,4 @@
 version: 1.2
-dockstoreYml:
-  version: 2.1
-
 workflows:
   - subclass: snakemake
     descriptorType: SNAKEMAKE
