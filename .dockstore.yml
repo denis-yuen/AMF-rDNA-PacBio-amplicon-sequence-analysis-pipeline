@@ -1,6 +1,6 @@
 version: 1.2
 workflows:
-  - subclass: snakemake
+  - subclass: SMK
     descriptorType: SNAKEMAKE
     primaryDescriptorPath: /workflow/Snakefile_prepare_and_cluster_amplicons
     publish: True
@@ -16,7 +16,7 @@ workflows:
         email: mario.laterriere@agr.gc.ca
       - name: Jackson Eyres
         email: jackson.eyres@agr.gc.ca
-    description: |
+    description:
       Snakemake pipeline to analyse rDNA amplicon sequences from Arbuscular Mycorrhizal Fungi (AMF) generated using PacBio sequencing technology.
       This pipeline performs primer trimming, quality and size filtering, dereplication, chimera removal, clustering (Swarm), taxonomic annotation (BLAST/TaxonKit), abundance filtering, and final alignment.
       Supports Conda environments and execution on Linux or SLURM clusters.
